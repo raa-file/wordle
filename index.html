@@ -33,17 +33,20 @@
   button{ -webkit-user-select:none; user-select:none; }
   #app{
     display:flex; flex-direction:column; align-items:center;
-    min-height:100vh;
-    padding:14px 10px 10px;
+    height:100dvh;
+    min-height:100dvh;
+    padding:10px 10px 6px;
+    overflow:hidden;
   }
 
   header{
     width:100%; max-width:420px;
     display:flex; align-items:center; justify-content:space-between;
-    padding:4px 4px 14px;
+    padding:2px 4px 8px;
+    flex-shrink:0;
   }
   header h1{
-    font-size:20px; margin:0; font-weight:800; letter-spacing:.3px;
+    font-size:18px; margin:0; font-weight:800; letter-spacing:.3px;
   }
   header h1 span{ color:var(--accent); }
   .icon-btn{
@@ -54,25 +57,28 @@
   .icon-btn:active{ background:var(--panel); }
 
   #message{
-    min-height:22px; font-size:14px; color:var(--text);
-    background:var(--panel); padding:6px 14px; border-radius:8px;
-    margin-bottom:10px; opacity:0; transition:opacity .15s ease;
+    min-height:20px; font-size:13px; color:var(--text);
+    background:var(--panel); padding:5px 14px; border-radius:8px;
+    margin-bottom:8px; opacity:0; transition:opacity .15s ease;
     text-align:center;
+    flex-shrink:0;
   }
   #message.show{ opacity:1; }
   #message.error{ color:#ffb4a8; }
   #message.success{ color:#a8e0b3; }
 
   #board{
-    display:grid; gap:8px; margin-bottom:20px;
+    display:grid; gap:6px; margin-bottom:12px;
+    flex-shrink:1;
+    min-height:0;
   }
-  .row{ display:grid; grid-template-columns:repeat(4, 62px); gap:8px; }
+  .row{ display:grid; grid-template-columns:repeat(4, min(15vw,62px)); gap:6px; }
   .tile{
-    width:62px; height:62px;
+    width:min(15vw,62px); height:min(15vw,62px);
     border:2px solid var(--tile-border);
     border-radius:10px;
     display:flex; align-items:center; justify-content:center;
-    font-size:28px; font-weight:700;
+    font-size:min(6.5vw,28px); font-weight:700;
     background:var(--tile-empty);
     color:var(--text);
     transition:transform .12s ease;
@@ -101,16 +107,17 @@
 
   #keyboard{
     width:100%; max-width:460px;
-    display:flex; flex-direction:column; gap:7px;
+    display:flex; flex-direction:column; gap:6px;
     margin-top:auto;
-    padding-top:10px;
+    padding-top:6px;
+    flex-shrink:0;
   }
   .krow{ display:flex; gap:5px; justify-content:center; }
   .key{
     background:var(--key-bg); color:var(--key-text);
     border:none; border-radius:7px;
-    font-size:16px; font-weight:600;
-    height:48px; min-width:30px; flex:1;
+    font-size:15px; font-weight:600;
+    height:min(11vw,46px); min-width:26px; flex:1;
     display:flex; align-items:center; justify-content:center;
     cursor:pointer;
     font-family:inherit;
@@ -179,9 +186,10 @@
   .btn.primary{ background:var(--accent); color:#fff; }
   .btn.secondary{ background:#2b3038; color:var(--text); }
 
-  @media (max-width:380px){
-    .row{ grid-template-columns:repeat(4, 56px); gap:6px; }
-    .tile{ width:56px; height:56px; font-size:24px; }
+  @media (max-height:700px){
+    #board{ gap:5px; margin-bottom:8px; }
+    .row{ gap:5px; }
+    header{ padding-bottom:4px; }
   }
 </style>
 </head>
@@ -243,8 +251,7 @@
     </div>
     <div id="dist-container"></div>
     <div class="next-word" id="next-word-box" style="display:none">
-      <div class="label">تبقى للكلمة التالية</div>
-      <div class="timer" id="next-timer">--:--:--</div>
+      <div class="label">لعبة جديدة متاحة الحين</div>
     </div>
   </div>
 </div>
@@ -279,21 +286,17 @@
   const pool = WORDS.filter(w => norm(w).length === WORD_LEN);
 
   // ===== Storage keys =====
-  const LS_STATE = "wg_state_v1";
+  const LS_STATE = "wg_state_v2";
   const LS_STATS = "wg_stats_v1";
 
-  function todayKey(){
-    const d = new Date();
-    return d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate();
-  }
-
-  function pickWordForToday(){
-    // deterministic pick based on date so word changes once per "round"
-    const key = todayKey();
-    let hash = 0;
-    for(let i=0;i<key.length;i++){ hash = (hash*31 + key.charCodeAt(i)) >>> 0; }
-    const idx = hash % pool.length;
-    return pool[idx];
+  let recentWords = []; // avoid immediate repeats
+  function pickRandomWord(){
+    let candidates = pool.filter(w => !recentWords.includes(w));
+    if(candidates.length === 0) candidates = pool; // reset if exhausted
+    const word = candidates[Math.floor(Math.random() * candidates.length)];
+    recentWords.push(word);
+    if(recentWords.length > Math.min(10, pool.length - 1)) recentWords.shift();
+    return word;
   }
 
   function loadStats(){
@@ -313,27 +316,33 @@
   function saveState(s){ localStorage.setItem(LS_STATE, JSON.stringify(s)); }
 
   // ===== Game state =====
-  let target = pickWordForToday();
-  let targetNorm = norm(target).split("");
-  let guesses = [];       // array of strings (normalized letters typed)
-  let currentGuess = "";
-  let gameOver = false;
-  let won = false;
-  let keyStatus = {}; // letter -> 'correct'|'present'|'absent'
+  let target, targetNorm, guesses, currentGuess, gameOver, won, keyStatus, statsFinalized;
 
-  const savedState = loadState();
-  if(savedState && savedState.wordKey === todayKey() + "_" + target){
-    guesses = savedState.guesses || [];
-    gameOver = savedState.gameOver || false;
-    won = savedState.won || false;
-    keyStatus = savedState.keyStatus || {};
+  function newGame(fromSaved){
+    if(fromSaved){
+      target = fromSaved.target;
+      guesses = fromSaved.guesses || [];
+      gameOver = fromSaved.gameOver || false;
+      won = fromSaved.won || false;
+      keyStatus = fromSaved.keyStatus || {};
+      statsFinalized = fromSaved.gameOver || false;
+    } else {
+      target = pickRandomWord();
+      guesses = [];
+      gameOver = false;
+      won = false;
+      keyStatus = {};
+      statsFinalized = false;
+    }
+    targetNorm = norm(target).split("");
+    currentGuess = "";
   }
 
+  const savedState = loadState();
+  newGame(savedState && savedState.target ? savedState : null);
+
   function persist(){
-    saveState({
-      wordKey: todayKey() + "_" + target,
-      guesses, gameOver, won, keyStatus
-    });
+    saveState({ target, guesses, gameOver, won, keyStatus });
   }
 
   // ===== Keyboard layout (Arabic) =====
@@ -418,6 +427,7 @@
     }
     if(gameOver){
       showEndMessage();
+      showNewWordButton();
     }
   }
 
@@ -554,12 +564,9 @@
     }, WORD_LEN*120 + 300);
   }
 
-  let statsFinalized = false;
   function finalizeGame(){
     if(statsFinalized) return;
-    // only record stats once per completed game — guard via state
-    const state = loadState();
-    if(state && state.statsRecorded) { statsFinalized = true; showEndMessage(); return; }
+    statsFinalized = true;
 
     const stats = loadStats();
     stats.games += 1;
@@ -572,15 +579,10 @@
       stats.streak = 0;
     }
     saveStats(stats);
-    statsFinalized = true;
 
-    const newState = {
-      wordKey: todayKey() + "_" + target,
-      guesses, gameOver, won, keyStatus, statsRecorded:true
-    };
-    saveState(newState);
-
+    persist();
     showEndMessage();
+    showNewWordButton();
   }
 
   function showEndMessage(){
@@ -589,6 +591,43 @@
     } else {
       showMessage("الكلمة كانت: " + target, "error", 0);
     }
+  }
+
+  function showNewWordButton(){
+    let btn = document.getElementById("btn-newword");
+    if(!btn){
+      btn = document.createElement("button");
+      btn.id = "btn-newword";
+      btn.className = "btn primary";
+      btn.style.marginTop = "8px";
+      btn.style.marginBottom = "4px";
+      btn.style.maxWidth = "300px";
+      btn.style.width = "100%";
+      btn.textContent = "كلمة جديدة";
+      btn.addEventListener("click", startNewGame);
+      msgEl.insertAdjacentElement("afterend", btn);
+    }
+    btn.style.display = "block";
+  }
+
+  function hideNewWordButton(){
+    const btn = document.getElementById("btn-newword");
+    if(btn) btn.style.display = "none";
+  }
+
+  function startNewGame(){
+    newGame(null);
+    document.querySelectorAll(".tile").forEach(t=>{
+      t.textContent = "";
+      t.className = "tile";
+    });
+    document.querySelectorAll(".key[data-letter]").forEach(btn=>{
+      btn.classList.remove("correct","present","absent");
+    });
+    msgEl.className = "";
+    msgEl.textContent = "";
+    hideNewWordButton();
+    persist();
   }
 
   // ===== Keyboard events =====
@@ -662,27 +701,7 @@
     }
 
     const nextBox = document.getElementById("next-word-box");
-    if(gameOver){
-      nextBox.style.display = "block";
-      updateTimer();
-    } else {
-      nextBox.style.display = "none";
-    }
-  }
-
-  function updateTimer(){
-    const now = new Date();
-    const tomorrow = new Date(now);
-    tomorrow.setHours(24,0,0,0);
-    const diff = tomorrow - now;
-    const h = String(Math.floor(diff/3600000)).padStart(2,"0");
-    const m = String(Math.floor((diff%3600000)/60000)).padStart(2,"0");
-    const s2 = String(Math.floor((diff%60000)/1000)).padStart(2,"0");
-    const el = document.getElementById("next-timer");
-    if(el) el.textContent = `${h}:${m}:${s2}`;
-    if(document.getElementById("overlay-stats").classList.contains("open")){
-      requestAnimationFrame(()=> setTimeout(updateTimer, 1000));
-    }
+    nextBox.style.display = gameOver ? "block" : "none";
   }
 
   // ===== Prevent system keyboard from ever appearing =====
