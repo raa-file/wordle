@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>خمّن الكلمة</title>
+<style>
+  :root{
+    --bg:#0f1115;
+    --panel:#171a21;
+    --tile-border:#3a3f4b;
+    --tile-empty:#0f1115;
+    --key-bg:#2b3038;
+    --key-text:#eceef1;
+    --green:#4c9a5b;
+    --gold:#c99a3a;
+    --gray:#3a3f4b;
+    --text:#eceef1;
+    --text-dim:#9aa1ad;
+    --accent:#4c9a5b;
+    --danger:#b0503f;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Segoe UI', Tahoma, 'Geeza Pro', Arial, sans-serif;
+    overscroll-behavior:none;
+    user-select:none;
+    -webkit-user-select:none;
+  }
+  button{ -webkit-user-select:none; user-select:none; }
+  #app{
+    display:flex; flex-direction:column; align-items:center;
+    min-height:100vh;
+    padding:14px 10px 10px;
+  }
+
+  header{
+    width:100%; max-width:420px;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:4px 4px 14px;
+  }
+  header h1{
+    font-size:20px; margin:0; font-weight:800; letter-spacing:.3px;
+  }
+  header h1 span{ color:var(--accent); }
+  .icon-btn{
+    background:none; border:none; color:var(--text-dim);
+    font-size:20px; cursor:pointer; padding:6px 10px; border-radius:8px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .icon-btn:active{ background:var(--panel); }
+
+  #message{
+    min-height:22px; font-size:14px; color:var(--text);
+    background:var(--panel); padding:6px 14px; border-radius:8px;
+    margin-bottom:10px; opacity:0; transition:opacity .15s ease;
+    text-align:center;
+  }
+  #message.show{ opacity:1; }
+  #message.error{ color:#ffb4a8; }
+  #message.success{ color:#a8e0b3; }
+
+  #board{
+    display:grid; gap:8px; margin-bottom:20px;
+  }
+  .row{ display:grid; grid-template-columns:repeat(4, 62px); gap:8px; }
+  .tile{
+    width:62px; height:62px;
+    border:2px solid var(--tile-border);
+    border-radius:10px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:28px; font-weight:700;
+    background:var(--tile-empty);
+    color:var(--text);
+    transition:transform .12s ease;
+  }
+  .tile.filled{ border-color:#565c69; }
+  .tile.pop{ animation:pop .12s ease; }
+  @keyframes pop{ 0%{transform:scale(1);} 50%{transform:scale(1.06);} 100%{transform:scale(1);} }
+  .tile.flip{ animation:flip .5s ease forwards; }
+  @keyframes flip{
+    0%{ transform:rotateX(0deg); }
+    50%{ transform:rotateX(90deg); }
+    51%{ transform:rotateX(90deg); }
+    100%{ transform:rotateX(0deg); }
+  }
+  .tile.correct{ background:var(--green); border-color:var(--green); color:#fff; }
+  .tile.present{ background:var(--gold); border-color:var(--gold); color:#1a1a1a; }
+  .tile.absent{ background:var(--gray); border-color:var(--gray); color:#c9cdd4; }
+
+  .tile.shake{ animation:shake .4s ease; }
+  @keyframes shake{
+    10%,90%{ transform:translateX(-1px); }
+    20%,80%{ transform:translateX(2px); }
+    30%,50%,70%{ transform:translateX(-4px); }
+    40%,60%{ transform:translateX(4px); }
+  }
+
+  #keyboard{
+    width:100%; max-width:460px;
+    display:flex; flex-direction:column; gap:7px;
+    margin-top:auto;
+    padding-top:10px;
+  }
+  .krow{ display:flex; gap:5px; justify-content:center; }
+  .key{
+    background:var(--key-bg); color:var(--key-text);
+    border:none; border-radius:7px;
+    font-size:16px; font-weight:600;
+    height:48px; min-width:30px; flex:1;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    font-family:inherit;
+  }
+  .key:active{ filter:brightness(1.3); }
+  .key.wide{ flex:1.6; font-size:13px; }
+  .key.correct{ background:var(--green); color:#fff; }
+  .key.present{ background:var(--gold); color:#1a1a1a; }
+  .key.absent{ background:#22252b; color:#5a606b; }
+
+  /* Modal */
+  .overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,.6);
+    display:flex; align-items:center; justify-content:center;
+    z-index:50; opacity:0; pointer-events:none; transition:opacity .2s ease;
+    padding:16px;
+  }
+  .overlay.open{ opacity:1; pointer-events:all; }
+  .modal{
+    background:var(--panel); border-radius:16px; padding:22px 20px;
+    width:100%; max-width:380px;
+    max-height:85vh; overflow-y:auto;
+    position:relative;
+    transform:translateY(10px); transition:transform .2s ease;
+  }
+  .overlay.open .modal{ transform:translateY(0); }
+  .modal h2{ margin:0 0 14px; font-size:18px; text-align:center; }
+  .modal .close{
+    position:absolute; top:14px; left:14px;
+    background:none; border:none; color:var(--text-dim);
+    font-size:18px; cursor:pointer;
+  }
+  .modal p{ font-size:14px; line-height:1.9; color:var(--text-dim); margin:10px 0; }
+  .modal .example-row{ display:flex; gap:6px; margin:10px 0; }
+  .modal .ex-tile{
+    width:38px; height:38px; border:2px solid var(--tile-border); border-radius:6px;
+    display:flex; align-items:center; justify-content:center; font-weight:700; font-size:18px;
+  }
+
+  .stats-grid{ display:flex; justify-content:space-between; gap:8px; margin-bottom:20px; }
+  .stat{ flex:1; text-align:center; background:#1f232b; border-radius:10px; padding:12px 4px; }
+  .stat .num{ font-size:26px; font-weight:800; }
+  .stat .label{ font-size:11px; color:var(--text-dim); margin-top:4px; }
+  .stat.highlight .num{ color:var(--accent); }
+
+  .dist-row{ display:flex; align-items:center; gap:8px; margin-bottom:6px; font-size:13px; }
+  .dist-row .n{ width:14px; text-align:center; color:var(--text-dim); }
+  .dist-bar-wrap{ flex:1; background:#1f232b; border-radius:5px; overflow:hidden; height:22px; }
+  .dist-bar{
+    height:100%; background:var(--gray); border-radius:5px;
+    display:flex; align-items:center; justify-content:flex-end; padding-inline-end:8px;
+    color:#fff; font-size:12px; font-weight:700; min-width:22px;
+    transition:width .4s ease;
+  }
+  .dist-bar.win{ background:var(--accent); }
+
+  .next-word{ text-align:center; margin-top:16px; padding-top:16px; border-top:1px solid #262a33; }
+  .next-word .label{ font-size:12px; color:var(--text-dim); margin-bottom:4px; }
+  .next-word .timer{ font-size:22px; font-weight:800; letter-spacing:1px; }
+
+  .end-actions{ display:flex; gap:10px; margin-top:14px; }
+  .btn{
+    flex:1; padding:12px; border-radius:10px; border:none;
+    font-size:14px; font-weight:700; cursor:pointer; font-family:inherit;
+  }
+  .btn.primary{ background:var(--accent); color:#fff; }
+  .btn.secondary{ background:#2b3038; color:var(--text); }
+
+  @media (max-width:380px){
+    .row{ grid-template-columns:repeat(4, 56px); gap:6px; }
+    .tile{ width:56px; height:56px; font-size:24px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <button class="icon-btn" id="btn-help" aria-label="طريقة اللعب">؟</button>
+    <h1>خمّن <span>الكلمة</span></h1>
+    <button class="icon-btn" id="btn-stats" aria-label="الإحصائيات">📊</button>
+  </header>
+
+  <div id="message"></div>
+
+  <div id="board"></div>
+
+  <div id="keyboard"></div>
+</div>
+
+<!-- Help Modal -->
+<div class="overlay" id="overlay-help">
+  <div class="modal">
+    <button class="close" data-close>✕</button>
+    <h2>طريقة اللعب</h2>
+    <p>خمّن كلمة من <b>4 حروف</b> في <b>6 محاولات</b>. سيتغيّر لون المربعات بعد كل محاولة لإظهار مدى قرب تخمينك من الكلمة.</p>
+    <div class="example-row">
+      <div class="ex-tile" style="background:#4c9a5b;border-color:#4c9a5b;color:#fff">ا</div>
+      <div class="ex-tile">ب</div>
+      <div class="ex-tile">ت</div>
+      <div class="ex-tile">س</div>
+    </div>
+    <p style="margin-top:-4px">الحرف <b>أ</b> موجود في الكلمة وفي مكانه الصحيح.</p>
+    <div class="example-row">
+      <div class="ex-tile">ث</div>
+      <div class="ex-tile" style="background:#c99a3a;border-color:#c99a3a;color:#1a1a1a">د</div>
+      <div class="ex-tile">ح</div>
+      <div class="ex-tile">ي</div>
+    </div>
+    <p style="margin-top:-4px">الحرف <b>د</b> موجود في الكلمة لكن في مكان خطأ.</p>
+    <div class="example-row">
+      <div class="ex-tile">ة</div>
+      <div class="ex-tile" style="background:#3a3f4b;border-color:#3a3f4b;color:#c9cdd4">م</div>
+      <div class="ex-tile">ي</div>
+      <div class="ex-tile">ج</div>
+    </div>
+    <p style="margin-top:-4px">الحرف <b>م</b> غير موجود في الكلمة في أي مكان.</p>
+  </div>
+</div>
+
+<!-- Stats Modal -->
+<div class="overlay" id="overlay-stats">
+  <div class="modal">
+    <button class="close" data-close>✕</button>
+    <h2>الإحصائيات</h2>
+    <div class="stats-grid">
+      <div class="stat"><div class="num" id="stat-games">0</div><div class="label">الألعاب</div></div>
+      <div class="stat highlight"><div class="num" id="stat-winpct">0</div><div class="label">الانتصارات (%)</div></div>
+      <div class="stat"><div class="num" id="stat-streak">0</div><div class="label">السلسلة الحالية</div></div>
+      <div class="stat"><div class="num" id="stat-maxstreak">0</div><div class="label">أفضل سلسلة</div></div>
+    </div>
+    <div id="dist-container"></div>
+    <div class="next-word" id="next-word-box" style="display:none">
+      <div class="label">تبقى للكلمة التالية</div>
+      <div class="timer" id="next-timer">--:--:--</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  // ===== Word list (4-letter Arabic words) =====
+  const WORDS = [
+    "بداية","سعيد","كريم","جميل","سلام","كتاب","قلم","باب","ورد","نور",
+    "قمر","نجم","بحر","ريح","مطر","ثلج","صيف","شتاء","خريف","ربيع",
+    "بيت","حديقة","شجرة","زهرة","طير","سمك","اسد","نمر","ذئب","فيل",
+    "غزال","حصان","جمل","دجاج","نعامة","حمام","بومة","نسر","صقر","عقاب",
+    "قهوة","شاي","عصير","لحم","خبز","تمر","عنب","تفاح","موز","ليمون",
+    "مدرسة","معلم","طالب","كتابة","قراءة","لعبة","رياضة","سباحة","جري","قفز",
+    "سيارة","طريق","مدينة","قرية","جبل","واحة","صحراء","نهر","بحيرة","شاطئ",
+    "سفينة","طائرة","قطار","دراجة","محفظة","ساعة","مرآة","سرير","طاولة","كرسي",
+    "نافذة","سقف","جدار","ارض","سماء","غيمة","شمس","ضوء","ظلام","نار",
+    "ماء","هواء","تراب","حجر","رمل","ذهب","فضة","ماس","لؤلؤ","جوهرة",
+    "قصة","حكاية","شعر","لحن","صوت","صورة","لوحة","فرشاة","الوان","ورقة",
+    "قلب","عقل","روح","حلم","امل","حب","فرح","حزن","غضب","خوف",
+    "صداقة","عائلة","اخ","اخت","جد","جدة","عم","خال","ابن","بنت",
+    "وطن","ارض","علم","حرية","سلم","عدل","صدق","امانة","شجاعة","صبر"
+  ];
+
+  const norm = w => w
+    .replace(/[أإآ]/g,"ا")
+    .replace(/ى/g,"ي")
+    .replace(/ة/g,"ه");
+
+  const WORD_LEN = 4;
+  const MAX_TRIES = 6;
+  const pool = WORDS.filter(w => norm(w).length === WORD_LEN);
+
+  // ===== Storage keys =====
+  const LS_STATE = "wg_state_v1";
+  const LS_STATS = "wg_stats_v1";
+
+  function todayKey(){
+    const d = new Date();
+    return d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate();
+  }
+
+  function pickWordForToday(){
+    // deterministic pick based on date so word changes once per "round"
+    const key = todayKey();
+    let hash = 0;
+    for(let i=0;i<key.length;i++){ hash = (hash*31 + key.charCodeAt(i)) >>> 0; }
+    const idx = hash % pool.length;
+    return pool[idx];
+  }
+
+  function loadStats(){
+    try{
+      return JSON.parse(localStorage.getItem(LS_STATS)) || {
+        games:0, wins:0, streak:0, maxStreak:0, dist:[0,0,0,0,0,0]
+      };
+    }catch(e){
+      return { games:0, wins:0, streak:0, maxStreak:0, dist:[0,0,0,0,0,0] };
+    }
+  }
+  function saveStats(s){ localStorage.setItem(LS_STATS, JSON.stringify(s)); }
+
+  function loadState(){
+    try{ return JSON.parse(localStorage.getItem(LS_STATE)); }catch(e){ return null; }
+  }
+  function saveState(s){ localStorage.setItem(LS_STATE, JSON.stringify(s)); }
+
+  // ===== Game state =====
+  let target = pickWordForToday();
+  let targetNorm = norm(target).split("");
+  let guesses = [];       // array of strings (normalized letters typed)
+  let currentGuess = "";
+  let gameOver = false;
+  let won = false;
+  let keyStatus = {}; // letter -> 'correct'|'present'|'absent'
+
+  const savedState = loadState();
+  if(savedState && savedState.wordKey === todayKey() + "_" + target){
+    guesses = savedState.guesses || [];
+    gameOver = savedState.gameOver || false;
+    won = savedState.won || false;
+    keyStatus = savedState.keyStatus || {};
+  }
+
+  function persist(){
+    saveState({
+      wordKey: todayKey() + "_" + target,
+      guesses, gameOver, won, keyStatus
+    });
+  }
+
+  // ===== Keyboard layout (Arabic) =====
+  const ROW1 = ["ض","ص","ث","ق","ف","غ","ع","ه","خ","ح","ج"];
+  const ROW2 = ["ش","س","ي","ب","ل","ا","ت","ن","م","ك","ط"];
+  const ROW3 = ["ئ","ء","ؤ","ر","لا","ى","ة","و","ز","ظ","ذ"];
+
+  const boardEl = document.getElementById("board");
+  const keyboardEl = document.getElementById("keyboard");
+  const msgEl = document.getElementById("message");
+
+  function buildBoard(){
+    boardEl.innerHTML = "";
+    for(let r=0;r<MAX_TRIES;r++){
+      const row = document.createElement("div");
+      row.className = "row";
+      row.id = "row-"+r;
+      for(let c=0;c<WORD_LEN;c++){
+        const tile = document.createElement("div");
+        tile.className = "tile";
+        tile.id = "tile-"+r+"-"+c;
+        row.appendChild(tile);
+      }
+      boardEl.appendChild(row);
+    }
+  }
+
+  function buildKeyboard(){
+    keyboardEl.innerHTML = "";
+    [ROW1, ROW2, ROW3].forEach((rowLetters, i) => {
+      const krow = document.createElement("div");
+      krow.className = "krow";
+      if(i === 2){
+        const enterBtn = document.createElement("button");
+        enterBtn.className = "key wide";
+        enterBtn.textContent = "إدخال";
+        enterBtn.dataset.action = "enter";
+        krow.appendChild(enterBtn);
+      }
+      rowLetters.forEach(letter => {
+        const key = document.createElement("button");
+        key.className = "key";
+        key.textContent = letter;
+        key.dataset.letter = letter;
+        krow.appendChild(key);
+      });
+      if(i === 2){
+        const delBtn = document.createElement("button");
+        delBtn.className = "key wide";
+        delBtn.textContent = "⌫";
+        delBtn.dataset.action = "del";
+        krow.appendChild(delBtn);
+      }
+      keyboardEl.appendChild(krow);
+    });
+  }
+
+  function showMessage(text, type, duration){
+    msgEl.textContent = text;
+    msgEl.className = "show" + (type ? " "+type : "");
+    if(duration !== 0){
+      clearTimeout(showMessage._t);
+      showMessage._t = setTimeout(()=>{ msgEl.className=""; }, duration || 1600);
+    }
+  }
+
+  function renderBoardFromState(){
+    // render past guesses
+    guesses.forEach((g, r) => {
+      const evalRes = evaluateGuess(g);
+      for(let c=0;c<WORD_LEN;c++){
+        const tile = document.getElementById("tile-"+r+"-"+c);
+        tile.textContent = g[c];
+        tile.classList.add("filled", evalRes[c]);
+      }
+    });
+    // apply key statuses
+    applyKeyStatuses();
+    // render current row cursor position
+    if(!gameOver){
+      renderCurrentGuess();
+    }
+    if(gameOver){
+      showEndMessage();
+    }
+  }
+
+  function renderCurrentGuess(){
+    const r = guesses.length;
+    for(let c=0;c<WORD_LEN;c++){
+      const tile = document.getElementById("tile-"+r+"-"+c);
+      if(!tile) continue;
+      const ch = currentGuess[c];
+      tile.textContent = ch || "";
+      tile.classList.toggle("filled", !!ch);
+    }
+  }
+
+  function evaluateGuess(guessArr){
+    // guessArr: array of normalized letters, length WORD_LEN
+    const result = new Array(WORD_LEN).fill("absent");
+    const targetCopy = targetNorm.slice();
+    // pass 1: correct
+    for(let i=0;i<WORD_LEN;i++){
+      if(guessArr[i] === targetCopy[i]){
+        result[i] = "correct";
+        targetCopy[i] = null;
+      }
+    }
+    // pass 2: present
+    for(let i=0;i<WORD_LEN;i++){
+      if(result[i] === "correct") continue;
+      const idx = targetCopy.indexOf(guessArr[i]);
+      if(idx !== -1){
+        result[i] = "present";
+        targetCopy[idx] = null;
+      }
+    }
+    return result;
+  }
+
+  function applyKeyStatuses(){
+    document.querySelectorAll(".key[data-letter]").forEach(btn=>{
+      const l = norm(btn.dataset.letter);
+      const status = keyStatus[l];
+      btn.classList.remove("correct","present","absent");
+      if(status) btn.classList.add(status);
+    });
+  }
+
+  function updateKeyStatus(guessArr, evalRes){
+    const priority = {absent:0, present:1, correct:2};
+    guessArr.forEach((letter, i) => {
+      const cur = keyStatus[letter];
+      const next = evalRes[i];
+      if(!cur || priority[next] > priority[cur]){
+        keyStatus[letter] = next;
+      }
+    });
+  }
+
+  let inputLocked = false;
+
+  function handleKey(rawLetter){
+    if(gameOver || inputLocked) return;
+    if(currentGuess.length >= WORD_LEN) return;
+    currentGuess += norm(rawLetter);
+    renderCurrentGuess();
+    animatePop(guesses.length, currentGuess.length-1);
+  }
+
+  function handleDelete(){
+    if(gameOver || inputLocked) return;
+    if(currentGuess.length === 0) return;
+    currentGuess = currentGuess.slice(0,-1);
+    renderCurrentGuess();
+  }
+
+  function animatePop(r,c){
+    const tile = document.getElementById("tile-"+r+"-"+c);
+    if(!tile) return;
+    tile.classList.remove("pop");
+    void tile.offsetWidth;
+    tile.classList.add("pop");
+  }
+
+  function shakeRow(r){
+    const row = document.getElementById("row-"+r);
+    if(!row) return;
+    row.querySelectorAll(".tile").forEach(t=>{
+      t.classList.remove("shake");
+      void t.offsetWidth;
+      t.classList.add("shake");
+    });
+  }
+
+  function handleEnter(){
+    if(gameOver || inputLocked) return;
+    if(currentGuess.length < WORD_LEN){
+      showMessage("الكلمة غير مكتملة", "error");
+      shakeRow(guesses.length);
+      return;
+    }
+    inputLocked = true;
+    const r = guesses.length;
+    const guessArr = currentGuess.split("");
+    const evalRes = evaluateGuess(guessArr);
+
+    // flip animation then color
+    for(let c=0;c<WORD_LEN;c++){
+      const tile = document.getElementById("tile-"+r+"-"+c);
+      setTimeout(()=>{
+        tile.classList.add("flip");
+        setTimeout(()=>{
+          tile.classList.add("filled", evalRes[c]);
+        }, 250);
+      }, c*120);
+    }
+
+    updateKeyStatus(guessArr, evalRes);
+    const isWin = evalRes.every(s => s === "correct");
+
+    setTimeout(()=>{
+      guesses.push(guessArr);
+      currentGuess = "";
+      inputLocked = false;
+      applyKeyStatuses();
+      if(isWin){
+        gameOver = true; won = true;
+        finalizeGame();
+      } else if(guesses.length >= MAX_TRIES){
+        gameOver = true; won = false;
+        finalizeGame();
+      } else {
+        renderCurrentGuess();
+      }
+      persist();
+    }, WORD_LEN*120 + 300);
+  }
+
+  let statsFinalized = false;
+  function finalizeGame(){
+    if(statsFinalized) return;
+    // only record stats once per completed game — guard via state
+    const state = loadState();
+    if(state && state.statsRecorded) { statsFinalized = true; showEndMessage(); return; }
+
+    const stats = loadStats();
+    stats.games += 1;
+    if(won){
+      stats.wins += 1;
+      stats.streak += 1;
+      stats.maxStreak = Math.max(stats.maxStreak, stats.streak);
+      stats.dist[guesses.length-1] += 1;
+    } else {
+      stats.streak = 0;
+    }
+    saveStats(stats);
+    statsFinalized = true;
+
+    const newState = {
+      wordKey: todayKey() + "_" + target,
+      guesses, gameOver, won, keyStatus, statsRecorded:true
+    };
+    saveState(newState);
+
+    showEndMessage();
+  }
+
+  function showEndMessage(){
+    if(won){
+      showMessage("أحسنت! 🎉", "success", 0);
+    } else {
+      showMessage("الكلمة كانت: " + target, "error", 0);
+    }
+  }
+
+  // ===== Keyboard events =====
+  keyboardEl.addEventListener("click", (e)=>{
+    const btn = e.target.closest("button");
+    if(!btn) return;
+    if(btn.dataset.action === "enter") return handleEnter();
+    if(btn.dataset.action === "del") return handleDelete();
+    if(btn.dataset.letter){
+      if(btn.dataset.letter === "لا"){
+        // combined key: insert ل then ا, but only as many as fit
+        if(currentGuess.length < WORD_LEN) handleKey("ل");
+        if(currentGuess.length < WORD_LEN) handleKey("ا");
+        return;
+      }
+      handleKey(btn.dataset.letter);
+    }
+  });
+
+  document.addEventListener("keydown", (e)=>{
+    if(e.key === "Enter") return handleEnter();
+    if(e.key === "Backspace") return handleDelete();
+    // physical Arabic keyboard support
+    if(e.key.length === 1 && /[\u0600-\u06FF]/.test(e.key)){
+      handleKey(e.key);
+    }
+  });
+
+  // ===== Modals =====
+  function openOverlay(id){ document.getElementById(id).classList.add("open"); }
+  function closeOverlay(id){ document.getElementById(id).classList.remove("open"); }
+
+  document.getElementById("btn-help").addEventListener("click", ()=> openOverlay("overlay-help"));
+  document.getElementById("btn-stats").addEventListener("click", ()=>{ renderStats(); openOverlay("overlay-stats"); });
+  document.querySelectorAll("[data-close]").forEach(b=> b.addEventListener("click", (e)=>{
+    e.target.closest(".overlay").classList.remove("open");
+  }));
+  document.querySelectorAll(".overlay").forEach(ov=>{
+    ov.addEventListener("click",(e)=>{ if(e.target === ov) ov.classList.remove("open"); });
+  });
+
+  function renderStats(){
+    const s = loadStats();
+    document.getElementById("stat-games").textContent = s.games;
+    document.getElementById("stat-winpct").textContent = s.games ? Math.round(100*s.wins/s.games) : 0;
+    document.getElementById("stat-streak").textContent = s.streak;
+    document.getElementById("stat-maxstreak").textContent = s.maxStreak;
+
+    const container = document.getElementById("dist-container");
+    container.innerHTML = "";
+    const maxVal = Math.max(1, ...s.dist);
+    for(let i=0;i<MAX_TRIES;i++){
+      const row = document.createElement("div");
+      row.className = "dist-row";
+      const n = document.createElement("div");
+      n.className = "n";
+      n.textContent = i+1;
+      const wrap = document.createElement("div");
+      wrap.className = "dist-bar-wrap";
+      const bar = document.createElement("div");
+      const val = s.dist[i] || 0;
+      const isCurrentWin = gameOver && won && guesses.length === i+1;
+      bar.className = "dist-bar" + (isCurrentWin ? " win" : "");
+      const pct = Math.max(8, Math.round(100*val/maxVal));
+      bar.style.width = pct + "%";
+      bar.textContent = val;
+      wrap.appendChild(bar);
+      row.appendChild(n);
+      row.appendChild(wrap);
+      container.appendChild(row);
+    }
+
+    const nextBox = document.getElementById("next-word-box");
+    if(gameOver){
+      nextBox.style.display = "block";
+      updateTimer();
+    } else {
+      nextBox.style.display = "none";
+    }
+  }
+
+  function updateTimer(){
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setHours(24,0,0,0);
+    const diff = tomorrow - now;
+    const h = String(Math.floor(diff/3600000)).padStart(2,"0");
+    const m = String(Math.floor((diff%3600000)/60000)).padStart(2,"0");
+    const s2 = String(Math.floor((diff%60000)/1000)).padStart(2,"0");
+    const el = document.getElementById("next-timer");
+    if(el) el.textContent = `${h}:${m}:${s2}`;
+    if(document.getElementById("overlay-stats").classList.contains("open")){
+      requestAnimationFrame(()=> setTimeout(updateTimer, 1000));
+    }
+  }
+
+  // ===== Prevent system keyboard from ever appearing =====
+  // If focus lands on any element (from the host app's own keyboard/input
+  // still being active), blur it immediately so it can't summon the
+  // native iOS keyboard over our custom one.
+  document.addEventListener("focusin", (e)=>{
+    if(e.target && typeof e.target.blur === "function"){
+      e.target.blur();
+    }
+  });
+
+  // ===== Init =====
+  buildBoard();
+  buildKeyboard();
+  renderBoardFromState();
+  document.activeElement && document.activeElement.blur();
+  window.scrollTo(0,0);
+
+})();
+</script>
+</body>
+</html>
