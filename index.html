@@ -362,9 +362,8 @@
   // dedicated action row, so no letter (like ذ) ever gets crowded off
   // narrow screens by the إدخال/⌫ buttons. =====
   const ROW1 = ["ض","ص","ث","ق","ف","غ","ع","ه","خ","ح","ج"];
-  const ROW2 = ["ش","س","ي","ب","ل","ا","ت","ن","م","ك","ط"];
-  const ROW3 = ["ئ","ء","ؤ","ر","لا","ى","ة","و","ز","ظ","ذ"];
-  const EXTRA_ROW = ["د"]; // not on the main iPhone rows; needed so all target letters stay typable
+  const ROW2 = ["ش","س","ي","ب","ل","ا","ت","ن","م","ك","ة"];
+  const ROW3 = ["ء","ظ","ط","ذ","د","ز","ر","و","ئ"];
 
   const boardEl = document.getElementById("board");
   const keyboardEl = document.getElementById("keyboard");
@@ -452,18 +451,6 @@
       });
       keyboardEl.appendChild(krow);
     });
-
-    // extra row for letters not on the main iPhone-style rows (e.g. د)
-    const extraRow = document.createElement("div");
-    extraRow.className = "krow extra-row";
-    EXTRA_ROW.forEach(letter=>{
-      const key = document.createElement("button");
-      key.className = "key key-extra";
-      key.textContent = letter;
-      key.dataset.letter = letter;
-      extraRow.appendChild(key);
-    });
-    keyboardEl.appendChild(extraRow);
 
     // dedicated action row — never competes with letters for space
     const actionRow = document.createElement("div");
@@ -720,12 +707,6 @@
     if(btn.dataset.action === "enter") return handleEnter();
     if(btn.dataset.action === "del") return handleDelete();
     if(btn.dataset.letter){
-      if(btn.dataset.letter === "لا"){
-        // combined key: insert ل then ا, but only as many as fit
-        if(currentGuess.length < WORD_LEN) handleKey("ل");
-        if(currentGuess.length < WORD_LEN) handleKey("ا");
-        return;
-      }
       handleKey(btn.dataset.letter);
     }
   });
