@@ -138,6 +138,9 @@
   .key.present{ background:var(--gold); color:#1a1a1a; }
   .key.absent{ background:#22252b; color:#5a606b; }
 
+  .extra-row{ justify-content:center; }
+  .key-extra{ flex:0 0 auto; width:64px; }
+
   /* Modal */
   .overlay{
     position:fixed; inset:0; background:rgba(0,0,0,.6);
@@ -358,21 +361,49 @@
   // ===== Keyboard layout (Arabic) — split into pure letter rows plus a
   // dedicated action row, so no letter (like ذ) ever gets crowded off
   // narrow screens by the إدخال/⌫ buttons. =====
-  const ROW1 = ["ض","ص","ث","ق","ف","غ","ع","ه","خ","ح","ج","د"];
+  const ROW1 = ["ض","ص","ث","ق","ف","غ","ع","ه","خ","ح","ج"];
   const ROW2 = ["ش","س","ي","ب","ل","ا","ت","ن","م","ك","ط"];
   const ROW3 = ["ئ","ء","ؤ","ر","لا","ى","ة","و","ز","ظ","ذ"];
+  const EXTRA_ROW = ["د"]; // not on the main iPhone rows; needed so all target letters stay typable
 
   const boardEl = document.getElementById("board");
   const keyboardEl = document.getElementById("keyboard");
   const msgEl = document.getElementById("message");
 
+  function computeTileSize(){
+    const gap = 6;
+
+    // width-based limit
+    const maxWidth = Math.min(window.innerWidth, 420) - 20;
+    const widthLimit = Math.floor((maxWidth - gap*(WORD_LEN-1)) / WORD_LEN);
+
+    // height-based limit: measure everything else on screen (header, mode
+    // toggle, message/new-word button, keyboard) and give the board only
+    // whatever vertical space is left, so it can never overlap the keyboard.
+    const appEl = document.getElementById("app");
+    const headerEl = document.querySelector("header");
+    const toggleEl = document.getElementById("mode-toggle");
+    const newWordBtn = document.getElementById("btn-newword");
+    const appStyles = getComputedStyle(appEl);
+    const appPadding = parseFloat(appStyles.paddingTop) + parseFloat(appStyles.paddingBottom);
+    const usedHeight =
+      (headerEl ? headerEl.offsetHeight : 0) +
+      (toggleEl ? toggleEl.offsetHeight : 0) +
+      (msgEl ? msgEl.offsetHeight : 0) +
+      (newWordBtn && newWordBtn.style.display !== "none" ? newWordBtn.offsetHeight : 0) +
+      (keyboardEl ? keyboardEl.offsetHeight : 0) +
+      appPadding + 40; // small safety buffer for gaps/margins
+    const availableHeight = Math.max(200, appEl.clientHeight - usedHeight);
+    const heightLimit = Math.floor((availableHeight - gap*(MAX_TRIES-1)) / MAX_TRIES);
+
+    let tileSize = Math.min(widthLimit, heightLimit);
+    tileSize = Math.max(30, Math.min(62, tileSize));
+    return { tileSize, fontSize: Math.round(tileSize * 0.46) };
+  }
+
   function buildBoard(){
     boardEl.innerHTML = "";
-    const maxWidth = Math.min(window.innerWidth, 420) - 20;
-    const gap = 6;
-    let tileSize = Math.floor((maxWidth - gap*(WORD_LEN-1)) / WORD_LEN);
-    tileSize = Math.max(38, Math.min(62, tileSize));
-    const fontSize = Math.round(tileSize * 0.46);
+    const { tileSize, fontSize } = computeTileSize();
 
     for(let r=0;r<MAX_TRIES;r++){
       const row = document.createElement("div");
@@ -392,6 +423,21 @@
     }
   }
 
+  function resizeBoard(){
+    // Re-applies sizing to existing tiles (without rebuilding them) so the
+    // board never overlaps the keyboard when surrounding content (like the
+    // "new word" button or the win/lose message) changes its height.
+    const { tileSize, fontSize } = computeTileSize();
+    document.querySelectorAll(".row").forEach(row=>{
+      row.style.gridTemplateColumns = `repeat(${WORD_LEN}, ${tileSize}px)`;
+    });
+    document.querySelectorAll(".tile").forEach(tile=>{
+      tile.style.width = tileSize+"px";
+      tile.style.height = tileSize+"px";
+      tile.style.fontSize = fontSize+"px";
+    });
+  }
+
   function buildKeyboard(){
     keyboardEl.innerHTML = "";
     [ROW1, ROW2, ROW3].forEach((rowLetters) => {
@@ -406,6 +452,19 @@
       });
       keyboardEl.appendChild(krow);
     });
+
+    // extra row for letters not on the main iPhone-style rows (e.g. د)
+    const extraRow = document.createElement("div");
+    extraRow.className = "krow extra-row";
+    EXTRA_ROW.forEach(letter=>{
+      const key = document.createElement("button");
+      key.className = "key key-extra";
+      key.textContent = letter;
+      key.dataset.letter = letter;
+      extraRow.appendChild(key);
+    });
+    keyboardEl.appendChild(extraRow);
+
     // dedicated action row — never competes with letters for space
     const actionRow = document.createElement("div");
     actionRow.className = "krow";
@@ -630,11 +689,13 @@
       msgEl.insertAdjacentElement("afterend", btn);
     }
     btn.style.display = "block";
+    resizeBoard();
   }
 
   function hideNewWordButton(){
     const btn = document.getElementById("btn-newword");
     if(btn) btn.style.display = "none";
+    resizeBoard();
   }
 
   function startNewGame(){
@@ -773,8 +834,15 @@
   buildKeyboard();
   setActiveModeButtons();
   renderBoardFromState();
+  resizeBoard();
   document.activeElement && document.activeElement.blur();
   window.scrollTo(0,0);
+
+  let resizeTimer;
+  window.addEventListener("resize", ()=>{
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(resizeBoard, 120);
+  });
 
 })();
 </script>
