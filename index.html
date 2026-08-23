@@ -122,7 +122,8 @@
     padding-top:6px;
     flex-shrink:0;
   }
-  .krow{ display:flex; gap:5px; justify-content:center; }
+  .krow{ display:flex; gap:5px; justify-content:center; direction:ltr; }
+  .krow.action-row{ direction:rtl; }
   .key{
     background:var(--key-bg); color:var(--key-text);
     border:none; border-radius:7px;
@@ -454,7 +455,7 @@
 
     // dedicated action row — never competes with letters for space
     const actionRow = document.createElement("div");
-    actionRow.className = "krow";
+    actionRow.className = "krow action-row";
     const enterBtn = document.createElement("button");
     enterBtn.className = "key wide";
     enterBtn.textContent = "إدخال";
