@@ -56,6 +56,17 @@
   }
   .icon-btn:active{ background:var(--panel); }
 
+  .mode-toggle{
+    display:flex; gap:6px; background:var(--panel); border-radius:10px;
+    padding:4px; margin-bottom:8px; flex-shrink:0;
+  }
+  .mode-btn{
+    border:none; background:transparent; color:var(--text-dim);
+    font-size:13px; font-weight:700; padding:6px 18px; border-radius:7px;
+    cursor:pointer; font-family:inherit;
+  }
+  .mode-btn.active{ background:var(--accent); color:#fff; }
+
   #message{
     min-height:20px; font-size:13px; color:var(--text);
     background:var(--panel); padding:5px 14px; border-radius:8px;
@@ -72,13 +83,12 @@
     flex-shrink:1;
     min-height:0;
   }
-  .row{ display:grid; grid-template-columns:repeat(4, min(15vw,62px)); gap:6px; }
+  .row{ display:grid; gap:6px; justify-content:center; }
   .tile{
-    width:min(15vw,62px); height:min(15vw,62px);
     border:2px solid var(--tile-border);
     border-radius:10px;
     display:flex; align-items:center; justify-content:center;
-    font-size:min(6.5vw,28px); font-weight:700;
+    font-weight:700;
     background:var(--tile-empty);
     color:var(--text);
     transition:transform .12s ease;
@@ -123,7 +133,7 @@
     font-family:inherit;
   }
   .key:active{ filter:brightness(1.3); }
-  .key.wide{ flex:1.6; font-size:13px; }
+  .key.wide{ flex:1; font-size:15px; height:min(11vw,46px); }
   .key.correct{ background:var(--green); color:#fff; }
   .key.present{ background:var(--gold); color:#1a1a1a; }
   .key.absent{ background:#22252b; color:#5a606b; }
@@ -201,6 +211,11 @@
     <button class="icon-btn" id="btn-stats" aria-label="الإحصائيات">📊</button>
   </header>
 
+  <div id="mode-toggle" class="mode-toggle">
+    <button class="mode-btn" data-len="4">٤ أحرف</button>
+    <button class="mode-btn" data-len="5">٥ أحرف</button>
+  </div>
+
   <div id="message"></div>
 
   <div id="board"></div>
@@ -213,7 +228,7 @@
   <div class="modal">
     <button class="close" data-close>✕</button>
     <h2>طريقة اللعب</h2>
-    <p>خمّن كلمة من <b>4 حروف</b> في <b>6 محاولات</b>. سيتغيّر لون المربعات بعد كل محاولة لإظهار مدى قرب تخمينك من الكلمة.</p>
+    <p>خمّن كلمة من <b id="help-len">4 حروف</b> في <b>6 محاولات</b>. سيتغيّر لون المربعات بعد كل محاولة لإظهار مدى قرب تخمينك من الكلمة.</p>
     <div class="example-row">
       <div class="ex-tile" style="background:#4c9a5b;border-color:#4c9a5b;color:#fff">ا</div>
       <div class="ex-tile">ب</div>
@@ -258,36 +273,31 @@
 
 <script>
 (function(){
-  // ===== Word list (4-letter Arabic words) =====
-  const WORDS = [
-    "بداية","سعيد","كريم","جميل","سلام","كتاب","قلم","باب","ورد","نور",
-    "قمر","نجم","بحر","ريح","مطر","ثلج","صيف","شتاء","خريف","ربيع",
-    "بيت","حديقة","شجرة","زهرة","طير","سمك","اسد","نمر","ذئب","فيل",
-    "غزال","حصان","جمل","دجاج","نعامة","حمام","بومة","نسر","صقر","عقاب",
-    "قهوة","شاي","عصير","لحم","خبز","تمر","عنب","تفاح","موز","ليمون",
-    "مدرسة","معلم","طالب","كتابة","قراءة","لعبة","رياضة","سباحة","جري","قفز",
-    "سيارة","طريق","مدينة","قرية","جبل","واحة","صحراء","نهر","بحيرة","شاطئ",
-    "سفينة","طائرة","قطار","دراجة","محفظة","ساعة","مرآة","سرير","طاولة","كرسي",
-    "نافذة","سقف","جدار","ارض","سماء","غيمة","شمس","ضوء","ظلام","نار",
-    "ماء","هواء","تراب","حجر","رمل","ذهب","فضة","ماس","لؤلؤ","جوهرة",
-    "قصة","حكاية","شعر","لحن","صوت","صورة","لوحة","فرشاة","الوان","ورقة",
-    "قلب","عقل","روح","حلم","امل","حب","فرح","حزن","غضب","خوف",
-    "صداقة","عائلة","اخ","اخت","جد","جدة","عم","خال","ابن","بنت",
-    "وطن","ارض","علم","حرية","سلم","عدل","صدق","امانة","شجاعة","صبر"
-  ];
+  // ===== Word lists =====
+  const WORDS4 = ["سعيد","كريم","جميل","سلام","كتاب","شتاء","خريف","ربيع","شجرة","زهرة","غزال","حصان","دجاج","حمام","بومة","عقاب","قهوة","عصير","تفاح","معلم","طالب","لعبة","جبال","سيول","رياح","بحار","انهر","قرية","واحة","بيوت","نجوم","قمار","ثلوج","رمال","جمال","عقول","قلوب","امال","اسرة","بنات","حريه","هدية"];
+  const WORDS5 = ["ابواب","امطار","اوراق","الوان","كلمات","ارواح","احلام","افراح","احزان","اخوان","اجداد","اعمام","اخوال","ابناء","اوطان","اعلام","مدينة","حديقة","مكتبة","سيارة","طائرة","سفينة","دراجة","محفظة","طاولة","نافذة","رياضة","صحراء","عائلة","شجاعة","مدارس","مكاتب","معلمة","مساجد","قصائد","اطفال","اقارب","اسماك","اطيار","اشجار","اثمار","اجبان"];
 
-  const norm = w => w
-    .replace(/[أإآ]/g,"ا")
-    .replace(/ى/g,"ي")
-    .replace(/ة/g,"ه");
+  // Normalize only alef variants (أ/إ/آ -> ا). ه/ة and ي/ى are kept distinct
+  // since they are different letters on the keyboard and in real words.
+  const norm = w => w.replace(/[أإآ]/g,"ا");
 
-  const WORD_LEN = 4;
+  const MODE_KEY = "wg_mode_v1";
+  function loadWordLen(){
+    const saved = localStorage.getItem(MODE_KEY);
+    return saved === "5" ? 5 : 4;
+  }
+  let WORD_LEN = loadWordLen();
   const MAX_TRIES = 6;
-  const pool = WORDS.filter(w => norm(w).length === WORD_LEN);
 
-  // ===== Storage keys =====
-  const LS_STATE = "wg_state_v2";
-  const LS_STATS = "wg_stats_v1";
+  function getPool(){
+    const list = WORD_LEN === 5 ? WORDS5 : WORDS4;
+    return list.filter(w => norm(w).length === WORD_LEN);
+  }
+  let pool = getPool();
+
+  // ===== Storage keys (separate per mode) =====
+  function stateKey(){ return "wg_state_v3_" + WORD_LEN; }
+  function statsKey(){ return "wg_stats_v2_" + WORD_LEN; }
 
   let recentWords = []; // avoid immediate repeats
   function pickRandomWord(){
@@ -301,19 +311,19 @@
 
   function loadStats(){
     try{
-      return JSON.parse(localStorage.getItem(LS_STATS)) || {
+      return JSON.parse(localStorage.getItem(statsKey())) || {
         games:0, wins:0, streak:0, maxStreak:0, dist:[0,0,0,0,0,0]
       };
     }catch(e){
       return { games:0, wins:0, streak:0, maxStreak:0, dist:[0,0,0,0,0,0] };
     }
   }
-  function saveStats(s){ localStorage.setItem(LS_STATS, JSON.stringify(s)); }
+  function saveStats(s){ localStorage.setItem(statsKey(), JSON.stringify(s)); }
 
   function loadState(){
-    try{ return JSON.parse(localStorage.getItem(LS_STATE)); }catch(e){ return null; }
+    try{ return JSON.parse(localStorage.getItem(stateKey())); }catch(e){ return null; }
   }
-  function saveState(s){ localStorage.setItem(LS_STATE, JSON.stringify(s)); }
+  function saveState(s){ localStorage.setItem(stateKey(), JSON.stringify(s)); }
 
   // ===== Game state =====
   let target, targetNorm, guesses, currentGuess, gameOver, won, keyStatus, statsFinalized;
@@ -345,8 +355,10 @@
     saveState({ target, guesses, gameOver, won, keyStatus });
   }
 
-  // ===== Keyboard layout (Arabic) =====
-  const ROW1 = ["ض","ص","ث","ق","ف","غ","ع","ه","خ","ح","ج"];
+  // ===== Keyboard layout (Arabic) — split into pure letter rows plus a
+  // dedicated action row, so no letter (like ذ) ever gets crowded off
+  // narrow screens by the إدخال/⌫ buttons. =====
+  const ROW1 = ["ض","ص","ث","ق","ف","غ","ع","ه","خ","ح","ج","د"];
   const ROW2 = ["ش","س","ي","ب","ل","ا","ت","ن","م","ك","ط"];
   const ROW3 = ["ئ","ء","ؤ","ر","لا","ى","ة","و","ز","ظ","ذ"];
 
@@ -356,14 +368,24 @@
 
   function buildBoard(){
     boardEl.innerHTML = "";
+    const maxWidth = Math.min(window.innerWidth, 420) - 20;
+    const gap = 6;
+    let tileSize = Math.floor((maxWidth - gap*(WORD_LEN-1)) / WORD_LEN);
+    tileSize = Math.max(38, Math.min(62, tileSize));
+    const fontSize = Math.round(tileSize * 0.46);
+
     for(let r=0;r<MAX_TRIES;r++){
       const row = document.createElement("div");
       row.className = "row";
       row.id = "row-"+r;
+      row.style.gridTemplateColumns = `repeat(${WORD_LEN}, ${tileSize}px)`;
       for(let c=0;c<WORD_LEN;c++){
         const tile = document.createElement("div");
         tile.className = "tile";
         tile.id = "tile-"+r+"-"+c;
+        tile.style.width = tileSize+"px";
+        tile.style.height = tileSize+"px";
+        tile.style.fontSize = fontSize+"px";
         row.appendChild(tile);
       }
       boardEl.appendChild(row);
@@ -372,16 +394,9 @@
 
   function buildKeyboard(){
     keyboardEl.innerHTML = "";
-    [ROW1, ROW2, ROW3].forEach((rowLetters, i) => {
+    [ROW1, ROW2, ROW3].forEach((rowLetters) => {
       const krow = document.createElement("div");
       krow.className = "krow";
-      if(i === 2){
-        const enterBtn = document.createElement("button");
-        enterBtn.className = "key wide";
-        enterBtn.textContent = "إدخال";
-        enterBtn.dataset.action = "enter";
-        krow.appendChild(enterBtn);
-      }
       rowLetters.forEach(letter => {
         const key = document.createElement("button");
         key.className = "key";
@@ -389,15 +404,22 @@
         key.dataset.letter = letter;
         krow.appendChild(key);
       });
-      if(i === 2){
-        const delBtn = document.createElement("button");
-        delBtn.className = "key wide";
-        delBtn.textContent = "⌫";
-        delBtn.dataset.action = "del";
-        krow.appendChild(delBtn);
-      }
       keyboardEl.appendChild(krow);
     });
+    // dedicated action row — never competes with letters for space
+    const actionRow = document.createElement("div");
+    actionRow.className = "krow";
+    const enterBtn = document.createElement("button");
+    enterBtn.className = "key wide";
+    enterBtn.textContent = "إدخال";
+    enterBtn.dataset.action = "enter";
+    const delBtn = document.createElement("button");
+    delBtn.className = "key wide";
+    delBtn.textContent = "⌫";
+    delBtn.dataset.action = "del";
+    actionRow.appendChild(enterBtn);
+    actionRow.appendChild(delBtn);
+    keyboardEl.appendChild(actionRow);
   }
 
   function showMessage(text, type, duration){
@@ -704,6 +726,38 @@
     nextBox.style.display = gameOver ? "block" : "none";
   }
 
+  // ===== Mode toggle (4 or 5 letters) =====
+  function setActiveModeButtons(){
+    document.querySelectorAll(".mode-btn").forEach(btn=>{
+      btn.classList.toggle("active", Number(btn.dataset.len) === WORD_LEN);
+    });
+    const helpLen = document.getElementById("help-len");
+    if(helpLen) helpLen.textContent = WORD_LEN + " حروف";
+  }
+
+  function switchMode(newLen){
+    if(newLen === WORD_LEN) return;
+    WORD_LEN = newLen;
+    localStorage.setItem(MODE_KEY, String(WORD_LEN));
+    pool = getPool();
+    recentWords = [];
+    const saved = loadState();
+    newGame(saved && saved.target ? saved : null);
+    hideNewWordButton();
+    msgEl.className = "";
+    msgEl.textContent = "";
+    buildBoard();
+    buildKeyboard();
+    setActiveModeButtons();
+    renderBoardFromState();
+  }
+
+  document.getElementById("mode-toggle").addEventListener("click",(e)=>{
+    const btn = e.target.closest(".mode-btn");
+    if(!btn) return;
+    switchMode(Number(btn.dataset.len));
+  });
+
   // ===== Prevent system keyboard from ever appearing =====
   // If focus lands on any element (from the host app's own keyboard/input
   // still being active), blur it immediately so it can't summon the
@@ -717,6 +771,7 @@
   // ===== Init =====
   buildBoard();
   buildKeyboard();
+  setActiveModeButtons();
   renderBoardFromState();
   document.activeElement && document.activeElement.blur();
   window.scrollTo(0,0);
